@@ -55,14 +55,14 @@ def build_generator():
     model.add(SelfAttention(64))  # Self-Attention 추가
 
     model.add(layers.Conv3DTranspose(1, (4, 4, 4), strides=(2, 2, 2), padding='same', use_bias=False, activation='tanh'))
-    assert model.output_shape == (None, 16, 16, 16, 1)
+    assert model.output_shape == (None, 32, 32, 32, 1)
 
     return model
 
 # Discriminator 모델 정의
 def build_discriminator():
     model = tf.keras.Sequential()
-    model.add(layers.Conv3D(64, (4, 4, 4), strides=(2, 2, 2), padding='same', input_shape=[16, 16, 16, 1]))
+    model.add(layers.Conv3D(64, (4, 4, 4), strides=(2, 2, 2), padding='same', input_shape=[32, 32, 32, 1]))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
 
@@ -139,7 +139,7 @@ def train(dataset, epochs):
 
 # 데이터셋 준비
 def generate_real_samples(batch_size):
-    return np.random.rand(batch_size, 16, 16, 16, 1).astype('float32')
+    return np.random.rand(batch_size, 32, 32, 32, 1).astype('float32')
 
 batch_size = 32
 epochs = 50
