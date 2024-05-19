@@ -32,10 +32,18 @@ class SelfAttention(layers.Layer):
 
         return self.gamma * attention_output + x
 
+# 하이퍼파라미터 정의
+latent_dim = 100
+batch_size = 32
+epochs = 50
+learning_rate = 1e-4
+beta_1 = 0.5
+beta_2 = 0.9
+
 # Generator 모델 정의
 def build_generator():
     model = tf.keras.Sequential()
-    model.add(layers.Dense(128 * 4 * 4 * 4, use_bias=False, input_shape=(100,)))
+    model.add(layers.Dense(128 * 4 * 4 * 4, use_bias=False, input_shape=(latent_dim,)))
     model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
 
@@ -100,8 +108,8 @@ def discriminator_loss(real_output, fake_output, gp):
 def generator_loss(fake_output):
     return -tf.reduce_mean(fake_output)
 
-generator_optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.5, beta_2=0.9)
-discriminator_optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.5, beta_2=0.9)
+generator_optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=beta_1, beta_2=beta_2)
+discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=beta_1, beta_2=beta_2)
 
 # 모델 생성
 generator = build_generator()
@@ -110,7 +118,7 @@ discriminator = build_discriminator()
 # 훈련 루프
 @tf.function
 def train_step(real_images):
-    noise = tf.random.normal([batch_size, 100])
+    noise = tf.random.normal([batch_size, latent_dim])
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
         generated_images = generator(noise, training=True)
@@ -136,13 +144,13 @@ def train(dataset, epochs):
         for real_images in dataset:
             gen_loss, disc_loss = train_step(real_images)
         print(f'Epoch {epoch + 1}, Generator Loss: {gen_loss}, Discriminator Loss: {disc_loss}')
+        if (epoch + 1) % 10 == 0:
+            generate_and_save_images(generator, epoch + 1)
 
 # 데이터셋 준비
 def generate_real_samples(batch_size):
     return np.random.rand(batch_size, 32, 32, 32, 1).astype('float32')
 
-batch_size = 32
-epochs = 50
 train_dataset = tf.data.Dataset.from_tensor_slices(generate_real_samples(1000)).shuffle(1000).batch(batch_size)
 
 # 훈련 시작
@@ -150,12 +158,13 @@ train(train_dataset, epochs)
 
 # 결과 확인
 def generate_and_save_images(model, epoch):
-    noise = tf.random.normal([1, 100])
+    noise = tf.random.normal([1, latent_dim])
     predictions = model(noise, training=False)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.voxels(predictions[0, :, :, :, 0] > 0.5, edgecolor='k')
     plt.title(f'Epoch {epoch}')
+    plt.savefig(f'image_at_epoch_{epoch:04d}.png')
     plt.show()
 
 generate_and_save_images(generator, epochs)
