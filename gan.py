@@ -41,6 +41,7 @@ epochs = 50
 learning_rate = 1e-4
 beta_1 = 0.5
 beta_2 = 0.9
+dropout_rate = 0.4
 checkpoint_dir = './training_checkpoints'
 log_dir = './logs'
 
@@ -76,13 +77,13 @@ def build_discriminator():
     model = tf.keras.Sequential()
     model.add(layers.Conv3D(64, (4, 4, 4), strides=(2, 2, 2), padding='same', input_shape=[32, 32, 32, 1]))
     model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(dropout_rate))
 
     model.add(SelfAttention(64))  # Self-Attention 추가
 
     model.add(layers.Conv3D(128, (4, 4, 4), strides=(2, 2, 2), padding='same'))
     model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(dropout_rate))
 
     model.add(SelfAttention(128))  # Self-Attention 추가
 
@@ -112,8 +113,16 @@ def discriminator_loss(real_output, fake_output, gp):
 def generator_loss(fake_output):
     return -tf.reduce_mean(fake_output)
 
-generator_optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=beta_1, beta_2=beta_2)
-discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=beta_1, beta_2=beta_2)
+# 학습률 스케줄러 정의
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=learning_rate,
+    decay_steps=10000,
+    decay_rate=0.9,
+    staircase=True
+)
+
+generator_optimizer = tf.keras.optimizers.Adam(lr_schedule, beta_1=beta_1, beta_2=beta_2)
+discriminator_optimizer = tf.keras.optimizers.Adam(lr_schedule, beta_1=beta_1, beta_2=beta_2)
 
 # 모델 생성
 generator = build_generator()
@@ -129,9 +138,17 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
 # 텐서보드 설정
 summary_writer = tf.summary.create_file_writer(log_dir)
 
+# 데이터 증강 함수 정의
+def augment_data(images):
+    # 간단한 데이터 증강 예시
+    images = tf.image.random_flip_left_right(images)
+    images = tf.image.random_flip_up_down(images)
+    return images
+
 # 훈련 루프
 @tf.function
 def train_step(real_images):
+    real_images = augment_data(real_images)
     noise = tf.random.normal([batch_size, latent_dim])
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
