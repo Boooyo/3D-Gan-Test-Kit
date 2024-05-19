@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
+import imageio
+import os
 
 # Self-Attention 레이어 정의
 class SelfAttention(layers.Layer):
@@ -39,6 +41,8 @@ epochs = 50
 learning_rate = 1e-4
 beta_1 = 0.5
 beta_2 = 0.9
+checkpoint_dir = './training_checkpoints'
+log_dir = './logs'
 
 # Generator 모델 정의
 def build_generator():
@@ -115,6 +119,16 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=beta_1,
 generator = build_generator()
 discriminator = build_discriminator()
 
+# 체크포인트 생성
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                 discriminator_optimizer=discriminator_optimizer,
+                                 generator=generator,
+                                 discriminator=discriminator)
+
+# 텐서보드 설정
+summary_writer = tf.summary.create_file_writer(log_dir)
+
 # 훈련 루프
 @tf.function
 def train_step(real_images):
@@ -143,9 +157,17 @@ def train(dataset, epochs):
     for epoch in range(epochs):
         for real_images in dataset:
             gen_loss, disc_loss = train_step(real_images)
+
+        # 로깅
+        with summary_writer.as_default():
+            tf.summary.scalar('gen_loss', gen_loss, step=epoch)
+            tf.summary.scalar('disc_loss', disc_loss, step=epoch)
+
         print(f'Epoch {epoch + 1}, Generator Loss: {gen_loss}, Discriminator Loss: {disc_loss}')
+
         if (epoch + 1) % 10 == 0:
             generate_and_save_images(generator, epoch + 1)
+            checkpoint.save(file_prefix=checkpoint_prefix)
 
 # 데이터셋 준비
 def generate_real_samples(batch_size):
@@ -166,5 +188,10 @@ def generate_and_save_images(model, epoch):
     plt.title(f'Epoch {epoch}')
     plt.savefig(f'image_at_epoch_{epoch:04d}.png')
     plt.show()
+    plt.close()
+
+    # Save the image using imageio
+    image = imageio.imread(f'image_at_epoch_{epoch:04d}.png')
+    imageio.imsave(f'image_epoch_{epoch:04d}.png', image)
 
 generate_and_save_images(generator, epochs)
